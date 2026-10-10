@@ -50,7 +50,7 @@ export function createServer(client = new SocialQueryClient()) {
     }, annotations: readOnly,
   }, handle(input => client.callEndpoint(input)));
   server.registerTool('get_credit_balance', {
-    description: 'Read the authenticated SocialQuery credit balance. Requires SOCIALQUERY_API_KEY; no data credits spent.',
+    description: 'Read the authenticated SocialQuery credit balance. Requires a SocialQuery API key; no data credits spent.',
     inputSchema: {}, annotations: readOnly,
   }, handle(() => client.balance()));
   return server;

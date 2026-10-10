@@ -1,0 +1,8 @@
+{
+  "name": "SocialQuery MCP",
+  "transport": "streamable-http",
+  "url": "https://socialquery-mcp.vercel.app/mcp",
+  "authentication": "Free discovery; Authorization: Bearer <SocialQuery API key> for account and data tools.",
+  "repository": "https://github.com/ricciflow-api/socialquery-mcp",
+  "documentation": "https://docs.socialquery.dev/guides/agents"
+}

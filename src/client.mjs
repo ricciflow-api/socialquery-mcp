@@ -38,7 +38,7 @@ export class SocialQueryClient {
 
   async get(path, parameters = {}, { authenticated = true, idempotencyKey } = {}) {
     checkPath(path);
-    if (authenticated && !this.apiKey) throw new SocialQueryError('Set SOCIALQUERY_API_KEY in the MCP server environment.');
+    if (authenticated && !this.apiKey) throw new SocialQueryError('Supply a SocialQuery API key: Authorization: Bearer for HTTP, or SOCIALQUERY_API_KEY for local stdio.');
     const url = new URL(path, ORIGIN);
     for (const [name, value] of Object.entries(parameters)) {
       if (!['string', 'number', 'boolean'].includes(typeof value) || String(value).length > 16000 || (typeof value === 'number' && !Number.isFinite(value))) {

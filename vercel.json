@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "",
+  "outputDirectory": "public",
+  "functions": { "api/mcp.js": { "maxDuration": 90 } },
+  "rewrites": [{ "source": "/mcp", "destination": "/api/mcp" }]
+}

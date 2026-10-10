@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 *.tgz
 .DS_Store
+.vercel/
+.vercel
+.env*

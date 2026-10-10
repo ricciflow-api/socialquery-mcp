@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "socialquery": {
+      "url": "https://socialquery-mcp.vercel.app/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_SOCIALQUERY_API_KEY"
+      }
+    }
+  }
+}
