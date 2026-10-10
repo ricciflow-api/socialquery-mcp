@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "socialquery": {
+      "command": "npx",
+      "args": ["--yes", "--package=github:ricciflow-api/socialquery-mcp", "socialquery-mcp"],
+      "env": {"SOCIALQUERY_API_KEY": "YOUR_SOCIALQUERY_API_KEY"}
+    }
+  }
+}
