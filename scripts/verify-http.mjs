@@ -11,7 +11,7 @@ async function connect(headers = {}) {
 }
 const client = await connect();
 try {
-  assert.equal((await client.listTools()).tools.length, 5);
+  assert.equal((await client.listTools()).tools.length, 6);
   const listing = await client.callTool({ name: 'list_endpoints', arguments: { platform: 'hackernews', limit: 2 } });
   assert.equal(listing.isError, undefined);
   assert.ok(listing.structuredContent.result.endpoints.length > 0);
@@ -19,7 +19,7 @@ try {
   assert.equal(detail.structuredContent.result.platformSlug, 'github');
   const noKey = await client.callTool({ name: 'get_credit_balance', arguments: {} });
   assert.equal(noKey.isError, true);
-  console.log('PASS: HTTP initialization, five tools, live catalog, endpoint details, missing-key rejection.');
+  console.log('PASS: HTTP initialization, six tools, live catalog, endpoint details, missing-key rejection.');
 } finally { await client.close(); }
 const invalid = await connect({ Authorization: 'Bearer invalid-socialquery-live-check' });
 try {

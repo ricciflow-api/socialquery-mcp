@@ -6,7 +6,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer } from '../src/server.mjs';
 import { SocialQueryClient } from '../src/client.mjs';
 
-const expected=['list_platforms','list_endpoints','get_endpoint','call_endpoint','get_credit_balance'];
+const expected=['list_platforms','list_endpoints','get_endpoint','call_endpoint','execute_endpoint','get_credit_balance'];
 test('real stdio process initializes and lists all tools without a credential',async()=>{
   const client=new Client({name:'protocol-test',version:'1.0.0'});
   const transport=new StdioClientTransport({command:process.execPath,args:['bin/socialquery-mcp.mjs'],env:{PATH:process.env.PATH??'',SOCIALQUERY_API_KEY:''},stderr:'pipe'});
@@ -41,4 +41,29 @@ test('MCP discovery filters and paginates; data results preserve envelope and in
     const invalid=await client.callTool({name:'list_endpoints',arguments:{limit:51}});
     assert.equal(invalid.isError,true);
   }finally{await client.close();await server.close();}
+});
+
+test('MCP mutations are explicitly annotated and preserve typed body through the SDK',async()=>{
+  const endpoint={id:'post_web_batch_scrape',title:'Batch',description:'Batch scrape',method:'POST',path:'/v1/web/batch-scrape',platformSlug:'web',creditCost:1,params:[{name:'urls',required:true}]};
+  let mutations=0;
+  const api=new SocialQueryClient({apiKey:'test',fetchImpl:async(url,options)=>{
+    if(url.pathname==='/v1/meta/endpoints')return Response.json({success:true,data:{endpoints:[endpoint]}});
+    mutations++;assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{urls:['https://example.com']});
+    assert.equal(options.headers['Idempotency-Key'],'batch-action-123');
+    return Response.json({success:true,data:{id:'job_test'},credits_used:1});
+  }});
+  const server=createServer(api),client=new Client({name:'mutation-test',version:'1'});
+  const[left,right]=InMemoryTransport.createLinkedPair();await server.connect(left);await client.connect(right);
+  try {
+    const tools=(await client.listTools()).tools;
+    assert.equal(tools.find(t=>t.name==='call_endpoint').annotations.readOnlyHint,true);
+    assert.equal(tools.find(t=>t.name==='execute_endpoint').annotations.readOnlyHint,false);
+    assert.equal(tools.find(t=>t.name==='execute_endpoint').annotations.destructiveHint,true);
+    const args={endpointId:endpoint.id,parameters:{urls:['https://example.com']},maxCredits:1};
+    assert.equal((await client.callTool({name:'call_endpoint',arguments:args})).isError,true);
+    assert.equal((await client.callTool({name:'execute_endpoint',arguments:args})).isError,true);
+    assert.equal(mutations,0);
+    const r=await client.callTool({name:'execute_endpoint',arguments:{...args,idempotencyKey:'batch-action-123'}});
+    assert.equal(r.structuredContent.result.data.id,'job_test');assert.equal(mutations,1);
+  } finally {await client.close();await server.close();}
 });

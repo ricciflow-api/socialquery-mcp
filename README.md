@@ -55,6 +55,7 @@ Replace the placeholder locally using your client's secret mechanism; keep crede
 | `list_endpoints` | Filter by platform or query; paginate up to 50 catalog entries | None / free |
 | `get_endpoint` | Inspect one operation's parameters, method, launch status, and credits | None / free |
 | `call_endpoint` | Make one GET request with `endpointId`, `parameters`, and `maxCredits` | API key / endpoint credits |
+| `execute_endpoint` | Execute a requested POST/PATCH/DELETE with an explicit budget and idempotency key | API key / endpoint credits |
 | `get_credit_balance` | Read your credit balance | API key / free |
 
 Example tool sequence:
@@ -63,7 +64,7 @@ Example tool sequence:
 2. `get_endpoint` with `{"endpointId":"get_hackernews_search"}`.
 3. With a user-approved request budget, `call_endpoint` with `{"endpointId":"get_hackernews_search","parameters":{"query":"developer tools","hitsPerPage":10},"maxCredits":1}`.
 
-The catalog is fetched live. `maxCredits` checks the catalog price before a request; it is not an atomic server-side billing cap. Optional enrichments or pricing changes can affect actual billing; inspect the returned `credits_used`. This release supports **GET** operations only; POST, PATCH, and DELETE remain available through the documented REST API. Catalog inclusion and beta status do not guarantee that an upstream provider is available.
+The catalog is fetched live. `maxCredits` checks the catalog price before a request; it is not an atomic server-side billing cap. Optional enrichments or pricing changes can affect actual billing; inspect the returned `credits_used`. `call_endpoint` supports GET. For a user-requested POST, PATCH, or DELETE, use `execute_endpoint` with a stable `idempotencyKey`; this separate tool is annotated as state-changing and potentially destructive. Parameters may contain JSON arrays and objects, with a 16,000-character limit per encoded value. File uploads above that limit require REST multipart form-data. Catalog inclusion and beta status do not guarantee that an upstream provider is available.
 
 The hosted service forwards keys only to `https://socialquery.dev`; local stdio clients send keys directly to that API. Both transports reject redirects, apply a 60-second timeout and a 4 MiB response limit, and perform no retries or automatic pagination. An optional `idempotencyKey` can be reused for a deliberate retry of identical inputs. A different operation needs a new key. Stop on authentication, insufficient-credit, validation, or unavailable-provider errors.
 

@@ -36,15 +36,25 @@ export class SocialQueryClient {
     this.fetch = fetchImpl;
   }
 
-  async get(path, parameters = {}, { authenticated = true, idempotencyKey } = {}) {
+  async get(path, parameters = {}, options = {}) {
+    return this.request('GET', path, parameters, options);
+  }
+
+  async request(method, path, parameters = {}, { authenticated = true, idempotencyKey } = {}) {
     checkPath(path);
+    if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) throw new SocialQueryError('Unsupported HTTP method.');
     if (authenticated && !this.apiKey) throw new SocialQueryError('Supply a SocialQuery API key: Authorization: Bearer for HTTP, or SOCIALQUERY_API_KEY for local stdio.');
     const url = new URL(path, ORIGIN);
+    const body = {};
     for (const [name, value] of Object.entries(parameters)) {
-      if (!['string', 'number', 'boolean'].includes(typeof value) || String(value).length > 16000 || (typeof value === 'number' && !Number.isFinite(value))) {
-        throw new SocialQueryError('Parameters must be finite numbers, booleans, or strings up to 16000 characters.');
-      }
-      url.searchParams.set(name, String(value));
+      let encoded;
+      try { encoded = typeof value === 'string' ? value : JSON.stringify(value, (_key, item) => {
+        if (typeof item === 'number' && !Number.isFinite(item) || typeof item === 'undefined' || typeof item === 'function' || typeof item === 'symbol') throw Error('Invalid JSON value');
+        return item;
+      }); } catch { throw new SocialQueryError('Parameters must contain finite JSON values.'); }
+      if (typeof encoded !== 'string' || encoded.length > 16000) throw new SocialQueryError('Each encoded parameter must fit within 16000 characters.');
+      if (method === 'GET') url.searchParams.set(name, encoded);
+      else body[name] = value;
     }
     const headers = { Accept: 'application/json' };
     if (authenticated) headers['x-api-key'] = this.apiKey;
@@ -52,9 +62,10 @@ export class SocialQueryClient {
       if (!/^[A-Za-z0-9_-]{8,128}$/.test(idempotencyKey)) throw new SocialQueryError('Idempotency key must be 8–128 letters, digits, underscores, or hyphens.');
       headers['Idempotency-Key'] = idempotencyKey;
     }
+    if (method !== 'GET') headers['Content-Type'] = 'application/json';
     let response;
     try {
-      response = await this.fetch(url, { method: 'GET', headers, redirect: 'error', signal: AbortSignal.timeout(60000) });
+      response = await this.fetch(url, { method, headers, ...(method !== 'GET' ? { body: JSON.stringify(body) } : {}), redirect: 'error', signal: AbortSignal.timeout(60000) });
     } catch { throw new SocialQueryError('SocialQuery request failed or timed out. No automatic retry was made.'); }
     if (!response.ok) {
       const requestId = (response.headers.get('x-request-id') ?? 'unavailable').replace(/[^a-zA-Z0-9_-]/g, '').slice(0,100);
@@ -82,9 +93,11 @@ export class SocialQueryClient {
     return endpoint;
   }
 
-  async callEndpoint({ endpointId, parameters = {}, maxCredits, idempotencyKey }) {
+  async callEndpoint({ endpointId, parameters = {}, maxCredits, idempotencyKey, allowMutation = false }) {
     const endpoint = await this.endpoint(endpointId);
-    if (endpoint.method !== 'GET') throw new SocialQueryError('This MCP supports GET data operations only. Use REST for POST, PATCH, and DELETE operations.');
+    if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(endpoint.method)) throw new SocialQueryError('Unsupported endpoint method.');
+    if (endpoint.method !== 'GET' && !allowMutation) throw new SocialQueryError('Use execute_endpoint for POST, PATCH, or DELETE only when the user requested that action; call_endpoint is GET only.');
+    if (endpoint.method !== 'GET' && !idempotencyKey) throw new SocialQueryError('Mutating requests require an idempotencyKey to prevent duplicate work on deliberate retries.');
     if (!Number.isInteger(maxCredits) || maxCredits < 0 || !Number.isFinite(endpoint.creditCost) || endpoint.creditCost < 0 || endpoint.creditCost > maxCredits) {
       throw new SocialQueryError('The catalog credit cost exceeds maxCredits, or the budget/cost is invalid.');
     }
@@ -104,7 +117,7 @@ export class SocialQueryClient {
       return String(value);
     });
     // One data request, with no hidden retries or pagination. Catalog reads are free.
-    return this.get(path, query, { idempotencyKey });
+    return this.request(endpoint.method, path, query, { idempotencyKey });
   }
 
   balance() { return this.get('/v1/credits/balance'); }

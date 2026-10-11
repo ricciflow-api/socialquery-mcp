@@ -72,3 +72,26 @@ test('missing keys fail locally; oversized responses are rejected',async()=>{
   const large=new SocialQueryClient({apiKey:'test',fetchImpl:async()=>new Response(' '.repeat(4*1024*1024+1))});
   await assert.rejects(large.get('/v1/github/profile'),/exceeds/);
 });
+
+test('mutations require explicit intent and replay identity, preserving method, path and typed JSON',async()=>{
+  for (const method of ['POST','PATCH','DELETE']) {
+    const item={id:'change_job',method,path:'/v1/web/jobs/{job_id}',creditCost:0,params:[{name:'job_id',required:true},{name:'urls'},{name:'options'}]};
+    const {client,calls}=fixture(item);
+    const input={endpointId:item.id,parameters:{job_id:'job_123',urls:['https://example.com'],options:{fresh:true,limit:2}},maxCredits:0};
+    await assert.rejects(client.callEndpoint(input),/GET only/);
+    await assert.rejects(client.callEndpoint({...input,allowMutation:true}),/idempotencyKey/);
+    assert.ok(calls.every(c=>c.url.pathname==='/v1/meta/endpoints'));
+    await client.callEndpoint({...input,allowMutation:true,idempotencyKey:'job-action-123'});
+    const sent=calls.at(-1);
+    assert.equal(sent.url.pathname,'/v1/web/jobs/job_123');assert.equal(sent.url.search,'');
+    assert.equal(sent.options.method,method);
+    assert.deepEqual(JSON.parse(sent.options.body),{urls:['https://example.com'],options:{fresh:true,limit:2}});
+    assert.equal(sent.options.headers['Content-Type'],'application/json');
+  }
+});
+
+test('nested invalid numbers cannot silently become JSON null',async()=>{
+  const {client,calls}=fixture({...endpoint,params:[{name:'query',required:true},{name:'options'}]});
+  await assert.rejects(client.callEndpoint({endpointId:endpoint.id,parameters:{query:'x',options:{limit:Infinity}},maxCredits:2}),/finite JSON/);
+  assert.equal(calls.length,1);
+});
