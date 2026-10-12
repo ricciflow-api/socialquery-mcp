@@ -112,6 +112,12 @@ export class SocialQueryClient {
         if (endpoint.path !== '/v1/prism/lookup' || !Number.isSafeInteger(pricing.maxCredits) || pricing.maxCredits < 1) throw new SocialQueryError('Invalid resolved pricing metadata.');
         resolvedPricing = true;
         quotedCost = pricing.maxCredits;
+      } else if (pricing?.type === 'profile_batch') {
+        if (endpoint.path !== '/v1/prism/profiles' || pricing.maxItems !== 50 || pricing.defaultCredits !== 1 || JSON.stringify(pricing.platformCredits) !== JSON.stringify({linkedin:5})) throw new SocialQueryError('Invalid profile pricing metadata.');
+        let items = parameters.items;
+        if (typeof items === 'string') { try { items = JSON.parse(items); } catch { throw new SocialQueryError('Invalid profile items.'); } }
+        if (!Array.isArray(items) || items.length < 1 || items.length > 50 || items.some(item => !item || typeof item !== 'object' || typeof item.platform !== 'string' || typeof item.handle !== 'string' || !item.handle.trim())) throw new SocialQueryError('Invalid profile items.');
+        quotedCost = items.reduce((sum,item) => sum + (item.platform === 'linkedin' ? 5 : 1),0);
       } else if (pricing?.type === 'per_successful_input') {
         if (endpoint.path !== '/v1/youtube/transcripts' || pricing.arrayParameter !== 'ids' || pricing.creditsPerItem !== 3 || pricing.maxItems !== 100) throw new SocialQueryError('Invalid batch pricing metadata.');
         let ids = parameters.ids;

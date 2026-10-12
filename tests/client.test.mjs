@@ -131,3 +131,10 @@ test('batch transcript budgets count IDs before a mutation request',async()=>{
  await client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:6,allowMutation:true,idempotencyKey:'batch-ok'});
  assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'6');assert.deepEqual(JSON.parse(calls.at(-1).options.body),params);
 });
+
+test('profile batch quotes platform tiers and preserves nested items and caller IDs',async()=>{
+ const item={...endpoint,id:'post_prism_profiles',method:'POST',path:'/v1/prism/profiles',creditCost:1,params:[{name:'items',required:true}],creditPricing:{type:'profile_batch',maxItems:50,defaultCredits:1,platformCredits:{linkedin:5}}};
+ const {client,calls}=fixture(item),params={items:[{platform:'bluesky',handle:'bsky.app',custom_id:'first'},{platform:'linkedin',handle:'example'}]};
+ await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:5,allowMutation:true,idempotencyKey:'underfunded'}),/maximum request charge/);assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:6,allowMutation:true,idempotencyKey:'profile-batch'});assert.deepEqual(JSON.parse(calls.at(-1).options.body),params);assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'6');
+});
