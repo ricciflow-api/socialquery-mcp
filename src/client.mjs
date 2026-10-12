@@ -112,6 +112,12 @@ export class SocialQueryClient {
         if (endpoint.path !== '/v1/prism/lookup' || !Number.isSafeInteger(pricing.maxCredits) || pricing.maxCredits < 1) throw new SocialQueryError('Invalid resolved pricing metadata.');
         resolvedPricing = true;
         quotedCost = pricing.maxCredits;
+      } else if (pricing?.type === 'post_stats_batch') {
+        if (endpoint.path !== '/v1/prism/post-stats' || pricing.maxItems !== 100 || pricing.defaultCredits !== 1 || JSON.stringify(pricing.platformCredits) !== JSON.stringify({instagram:2,linkedin:5})) throw new SocialQueryError('Invalid post-statistics pricing metadata.');
+        let urls=parameters.urls;
+        if(typeof urls==='string'){try{urls=JSON.parse(urls);}catch{throw new SocialQueryError('Invalid post URLs.');}}
+        if(!Array.isArray(urls)||urls.length<1||urls.length>100||urls.some(url=>typeof url!=='string'||!url.trim()||url.length>2048))throw new SocialQueryError('Invalid post URLs.');
+        quotedCost=urls.reduce((sum,url)=>{let host;try{host=new URL(url).hostname.toLowerCase().replace(/^www\./,'');}catch{}return sum+(host==='instagram.com'?2:host==='linkedin.com'?5:1);},0);
       } else if (pricing?.type === 'profile_batch') {
         if (endpoint.path !== '/v1/prism/profiles' || pricing.maxItems !== 50 || pricing.defaultCredits !== 1 || JSON.stringify(pricing.platformCredits) !== JSON.stringify({linkedin:5})) throw new SocialQueryError('Invalid profile pricing metadata.');
         let items = parameters.items;

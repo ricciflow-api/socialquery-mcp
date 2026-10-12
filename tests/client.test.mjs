@@ -138,3 +138,11 @@ test('profile batch quotes platform tiers and preserves nested items and caller 
  await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:5,allowMutation:true,idempotencyKey:'underfunded'}),/maximum request charge/);assert.equal(calls.length,1);
  await client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:6,allowMutation:true,idempotencyKey:'profile-batch'});assert.deepEqual(JSON.parse(calls.at(-1).options.body),params);assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'6');
 });
+
+
+test('post-stat batches quote URL platform tiers without following input links',async()=>{
+ const item={...endpoint,id:'post_prism_post_stats',method:'POST',path:'/v1/prism/post-stats',creditCost:1,params:[{name:'urls',required:true}],creditPricing:{type:'post_stats_batch',maxItems:100,defaultCredits:1,platformCredits:{instagram:2,linkedin:5}}};
+ const {client,calls}=fixture(item),params={urls:['https://instagram.com/example/p/abc/','https://www.linkedin.com/posts/example','https://youtu.be/jNQXAC9IVRw','invalid']};
+ await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:8,allowMutation:true,idempotencyKey:'underfunded'}),/maximum request charge/);assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:9,allowMutation:true,idempotencyKey:'post-stats-batch'});assert.deepEqual(JSON.parse(calls.at(-1).options.body),params);assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'9');
+});
