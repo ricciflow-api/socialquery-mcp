@@ -7,7 +7,7 @@ const fixture = (item=endpoint) => {
   const calls=[];
   const client=new SocialQueryClient({apiKey:'test-only-key',fetchImpl:async(url,options)=>{
     calls.push({url,options});
-    return Response.json({success:true,data:url.pathname==='/v1/meta/endpoints'?{endpoints:[item]}:{items:[]}});
+    return Response.json({success:true,credits_used:0,data:url.pathname==='/v1/meta/endpoints'?{endpoints:[item]}:{items:[]}});
   }});
   return {client,calls};
 };
@@ -20,6 +20,7 @@ test('catalog discovery omits credentials; a data call encodes query and sends o
   assert.equal(calls[1].url.origin,'https://socialquery.dev');
   assert.equal(calls[1].url.searchParams.get('query'),'a & b');
   assert.equal(calls[1].options.headers['x-api-key'],'test-only-key');
+  assert.equal(calls[1].options.headers['X-Max-Credits'],'2');
   assert.equal(calls[1].options.headers['Idempotency-Key'],'operation-123');
   assert.equal(calls[1].options.redirect,'error');
   assert.ok(!calls[1].url.href.includes('test-only-key'));
@@ -94,4 +95,21 @@ test('nested invalid numbers cannot silently become JSON null',async()=>{
   const {client,calls}=fixture({...endpoint,params:[{name:'query',required:true},{name:'options'}]});
   await assert.rejects(client.callEndpoint({endpointId:endpoint.id,parameters:{query:'x',options:{limit:Infinity}},maxCredits:2}),/finite JSON/);
   assert.equal(calls.length,1);
+});
+
+test('metered quotes reserve depth, transmit server cap, and reject underfunding before data requests',async()=>{
+ const item={...endpoint,creditPricing:{type:'per_item',creditsPerItem:2,limitParameter:'limit',defaultLimit:25,maxLimit:100}};
+ const {client,calls}=fixture(item);
+ await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{query:'x',limit:10},maxCredits:19}),/maximum request charge/);
+ assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters:{query:'x',limit:'10'},maxCredits:20});
+ assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'20');
+ await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{query:'x'},maxCredits:49}),/maximum request charge/);
+ for(const limit of [null,true,0,101,'2.5'])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{query:'x',limit},maxCredits:200}));
+});
+test('client treats missing, invalid and over-budget usage as failures without retrying',async()=>{
+ for(const credits_used of [undefined,-1,3,1.5]) {
+ let calls=0;const client=new SocialQueryClient({apiKey:'test',fetchImpl:async()=>{calls++;return Response.json({success:true,credits_used,data:{}});}});
+ await assert.rejects(client.request('GET','/v1/test',{}, {maxCredits:2}),/credit usage/);assert.equal(calls,1);
+ }
 });

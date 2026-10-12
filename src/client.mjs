@@ -40,7 +40,7 @@ export class SocialQueryClient {
     return this.request('GET', path, parameters, options);
   }
 
-  async request(method, path, parameters = {}, { authenticated = true, idempotencyKey } = {}) {
+  async request(method, path, parameters = {}, { authenticated = true, idempotencyKey, maxCredits } = {}) {
     checkPath(path);
     if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) throw new SocialQueryError('Unsupported HTTP method.');
     if (authenticated && !this.apiKey) throw new SocialQueryError('Supply a SocialQuery API key: Authorization: Bearer for HTTP, or SOCIALQUERY_API_KEY for local stdio.');
@@ -58,6 +58,10 @@ export class SocialQueryClient {
     }
     const headers = { Accept: 'application/json' };
     if (authenticated) headers['x-api-key'] = this.apiKey;
+    if (maxCredits !== undefined) {
+      if (!Number.isSafeInteger(maxCredits) || maxCredits < 0) throw new SocialQueryError('Invalid credit cap.');
+      headers['X-Max-Credits'] = String(maxCredits);
+    }
     if (idempotencyKey !== undefined) {
       if (!/^[A-Za-z0-9_-]{8,128}$/.test(idempotencyKey)) throw new SocialQueryError('Idempotency key must be 8–128 letters, digits, underscores, or hyphens.');
       headers['Idempotency-Key'] = idempotencyKey;
@@ -74,6 +78,7 @@ export class SocialQueryClient {
     }
     const result = await readJson(response);
     if (!result || result.success !== true) throw new SocialQueryError('SocialQuery returned an unsuccessful response.');
+    if (maxCredits !== undefined && (!Number.isSafeInteger(result.credits_used) || result.credits_used < 0 || result.credits_used > maxCredits)) throw new SocialQueryError('Response credit usage exceeded the approved cap or was invalid.');
     return result;
   }
 
@@ -98,10 +103,19 @@ export class SocialQueryClient {
     if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(endpoint.method)) throw new SocialQueryError('Unsupported endpoint method.');
     if (endpoint.method !== 'GET' && !allowMutation) throw new SocialQueryError('Use execute_endpoint for POST, PATCH, or DELETE only when the user requested that action; call_endpoint is GET only.');
     if (endpoint.method !== 'GET' && !idempotencyKey) throw new SocialQueryError('Mutating requests require an idempotencyKey to prevent duplicate work on deliberate retries.');
-    if (!Number.isInteger(maxCredits) || maxCredits < 0 || !Number.isFinite(endpoint.creditCost) || endpoint.creditCost < 0 || endpoint.creditCost > maxCredits) {
-      throw new SocialQueryError('The catalog credit cost exceeds maxCredits, or the budget/cost is invalid.');
-    }
     if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) throw new SocialQueryError('Parameters must be an object.');
+    let quotedCost = endpoint.creditCost;
+    if (endpoint.creditPricing !== undefined) {
+      const pricing = endpoint.creditPricing;
+      if (pricing?.type !== 'per_item' || !Number.isSafeInteger(pricing.creditsPerItem) || pricing.creditsPerItem < 1 || !Number.isSafeInteger(pricing.maxLimit) || pricing.maxLimit < 1 || !Number.isSafeInteger(pricing.defaultLimit) || pricing.defaultLimit < 1 || pricing.defaultLimit > pricing.maxLimit || typeof pricing.limitParameter !== 'string') throw new SocialQueryError('Invalid metered pricing metadata.');
+      const raw = Object.hasOwn(parameters, pricing.limitParameter) ? parameters[pricing.limitParameter] : pricing.defaultLimit;
+      const limit = Number(raw);
+      if (!['string','number'].includes(typeof raw) || typeof raw === 'string' && !/^\d+$/.test(raw) || !Number.isSafeInteger(limit) || limit < 1 || limit > pricing.maxLimit) throw new SocialQueryError('Invalid metered request limit.');
+      quotedCost = limit * pricing.creditsPerItem;
+    }
+    if (!Number.isSafeInteger(maxCredits) || maxCredits < 0 || !Number.isSafeInteger(quotedCost) || quotedCost < 0 || quotedCost > maxCredits) {
+      throw new SocialQueryError('The maximum request charge exceeds maxCredits, or the budget/cost is invalid.');
+    }
     const specs = endpoint.params ?? [];
     const allowed = new Set(specs.map(param => param.name));
     if (Object.keys(parameters).some(name => !allowed.has(name))) throw new SocialQueryError('Unknown parameter. Inspect get_endpoint for allowed inputs.');
@@ -117,7 +131,7 @@ export class SocialQueryClient {
       return String(value);
     });
     // One data request, with no hidden retries or pagination. Catalog reads are free.
-    return this.request(endpoint.method, path, query, { idempotencyKey });
+    return this.request(endpoint.method, path, query, { idempotencyKey, maxCredits });
   }
 
   balance() { return this.get('/v1/credits/balance'); }
