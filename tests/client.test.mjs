@@ -113,3 +113,12 @@ test('client treats missing, invalid and over-budget usage as failures without r
  await assert.rejects(client.request('GET','/v1/test',{}, {maxCredits:2}),/credit usage/);assert.equal(calls,1);
  }
 });
+
+test('resolved prices preserve caller caps for exact enforcement before server reservation',async()=>{
+ const item={...endpoint,path:'/v1/prism/lookup',creditCost:1,creditPricing:{type:'resolved_endpoint',maxCredits:5},params:[{name:'url',required:true}]};
+ const {client,calls}=fixture(item);
+ await client.callEndpoint({endpointId:item.id,parameters:{url:'https://github.com/octocat/Hello-World'},maxCredits:1});
+ assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'1');
+ for(const maxCredits of [undefined,-1,1.5])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{url:'https://github.com/octocat/Hello-World'},maxCredits}));
+ const bad=fixture({...item,path:'/v1/test/search'});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{url:'https://example.com'},maxCredits:5}),/Invalid resolved pricing/);assert.equal(bad.calls.length,1);
+});

@@ -105,15 +105,22 @@ export class SocialQueryClient {
     if (endpoint.method !== 'GET' && !idempotencyKey) throw new SocialQueryError('Mutating requests require an idempotencyKey to prevent duplicate work on deliberate retries.');
     if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) throw new SocialQueryError('Parameters must be an object.');
     let quotedCost = endpoint.creditCost;
+    let resolvedPricing = false;
     if (endpoint.creditPricing !== undefined) {
       const pricing = endpoint.creditPricing;
+      if (pricing?.type === 'resolved_endpoint') {
+        if (endpoint.path !== '/v1/prism/lookup' || !Number.isSafeInteger(pricing.maxCredits) || pricing.maxCredits < 1) throw new SocialQueryError('Invalid resolved pricing metadata.');
+        resolvedPricing = true;
+        quotedCost = pricing.maxCredits;
+      } else {
       if (pricing?.type !== 'per_item' || !Number.isSafeInteger(pricing.creditsPerItem) || pricing.creditsPerItem < 1 || !Number.isSafeInteger(pricing.maxLimit) || pricing.maxLimit < 1 || !Number.isSafeInteger(pricing.defaultLimit) || pricing.defaultLimit < 1 || pricing.defaultLimit > pricing.maxLimit || typeof pricing.limitParameter !== 'string') throw new SocialQueryError('Invalid metered pricing metadata.');
       const raw = Object.hasOwn(parameters, pricing.limitParameter) ? parameters[pricing.limitParameter] : pricing.defaultLimit;
       const limit = Number(raw);
       if (!['string','number'].includes(typeof raw) || typeof raw === 'string' && !/^\d+$/.test(raw) || !Number.isSafeInteger(limit) || limit < 1 || limit > pricing.maxLimit) throw new SocialQueryError('Invalid metered request limit.');
       quotedCost = limit * pricing.creditsPerItem;
+      }
     }
-    if (!Number.isSafeInteger(maxCredits) || maxCredits < 0 || !Number.isSafeInteger(quotedCost) || quotedCost < 0 || quotedCost > maxCredits) {
+    if (!Number.isSafeInteger(maxCredits) || maxCredits < 0 || !Number.isSafeInteger(quotedCost) || quotedCost < 0 || !resolvedPricing && quotedCost > maxCredits) {
       throw new SocialQueryError('The maximum request charge exceeds maxCredits, or the budget/cost is invalid.');
     }
     const specs = endpoint.params ?? [];
