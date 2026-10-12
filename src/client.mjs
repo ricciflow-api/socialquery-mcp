@@ -112,6 +112,11 @@ export class SocialQueryClient {
         if (endpoint.path !== '/v1/prism/lookup' || !Number.isSafeInteger(pricing.maxCredits) || pricing.maxCredits < 1) throw new SocialQueryError('Invalid resolved pricing metadata.');
         resolvedPricing = true;
         quotedCost = pricing.maxCredits;
+      } else if (pricing?.type === 'board_plus_item') {
+        if (endpoint.path !== '/v1/tiktok/videos/popular' || pricing.baseCredits !== 25 || pricing.creditsPerItem !== 1 || pricing.defaultLimit !== 20 || pricing.maxLimit !== 20) throw new SocialQueryError('Invalid video-board pricing metadata.');
+        const raw = parameters.limit ?? 20, limit = Number(raw);
+        if (!['string','number'].includes(typeof raw) || typeof raw === 'string' && !/^\d+$/.test(raw) || !Number.isSafeInteger(limit) || limit < 1 || limit > 20) throw new SocialQueryError('Invalid video-board limit.');
+        quotedCost = 25 + limit;
       } else if (pricing?.type === 'trend_boards') {
         if (endpoint.path !== '/v1/tiktok/hashtags/popular' || pricing.creditsPerItem !== 2 || pricing.minimumCredits !== 6 || pricing.maxItems !== 48) throw new SocialQueryError('Invalid trend-board pricing metadata.');
         quotedCost = parameters.industry === 'all' ? 96 : 6;

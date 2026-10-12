@@ -154,3 +154,11 @@ test('trend-board maximum holds depend on industry fanout and reject insufficien
  await client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:6});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'6');
  const bad=fixture({...item,path:'/v1/test/search'});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:96}),/Invalid trend-board/);assert.equal(bad.calls.length,1);
 });
+
+test('video boards include fixed overhead in the maximum quote and refuse invalid limits',async()=>{
+ const item={id:'get_tiktok_videos_popular',method:'GET',path:'/v1/tiktok/videos/popular',creditCost:26,params:[{name:'limit'}],creditPricing:{type:'board_plus_item',baseCredits:25,creditsPerItem:1,defaultLimit:20,maxLimit:20}};
+ const{client,calls}=fixture(item);await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:44}),/maximum/);assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:45});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'45');
+ await client.callEndpoint({endpointId:item.id,parameters:{limit:4},maxCredits:29});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'29');
+ for(const limit of [0,21,1.5,'2e1',true])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{limit},maxCredits:45}),/limit/);
+});
