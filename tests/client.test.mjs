@@ -146,3 +146,11 @@ test('post-stat batches quote URL platform tiers without following input links',
  await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:8,allowMutation:true,idempotencyKey:'underfunded'}),/maximum request charge/);assert.equal(calls.length,1);
  await client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:9,allowMutation:true,idempotencyKey:'post-stats-batch'});assert.deepEqual(JSON.parse(calls.at(-1).options.body),params);assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'9');
 });
+
+test('trend-board maximum holds depend on industry fanout and reject insufficient budgets before data access',async()=>{
+ const item={id:'get_tiktok_hashtags_popular',method:'GET',path:'/v1/tiktok/hashtags/popular',creditCost:6,params:[{name:'industry'}],creditPricing:{type:'trend_boards',creditsPerItem:2,minimumCredits:6,maxItems:48}};
+ const{client,calls}=fixture(item);await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{industry:'all'},maxCredits:95}),/maximum/);assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters:{industry:'all'},maxCredits:96});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'96');
+ await client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:6});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'6');
+ const bad=fixture({...item,path:'/v1/test/search'});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:96}),/Invalid trend-board/);assert.equal(bad.calls.length,1);
+});

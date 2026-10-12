@@ -112,6 +112,9 @@ export class SocialQueryClient {
         if (endpoint.path !== '/v1/prism/lookup' || !Number.isSafeInteger(pricing.maxCredits) || pricing.maxCredits < 1) throw new SocialQueryError('Invalid resolved pricing metadata.');
         resolvedPricing = true;
         quotedCost = pricing.maxCredits;
+      } else if (pricing?.type === 'trend_boards') {
+        if (endpoint.path !== '/v1/tiktok/hashtags/popular' || pricing.creditsPerItem !== 2 || pricing.minimumCredits !== 6 || pricing.maxItems !== 48) throw new SocialQueryError('Invalid trend-board pricing metadata.');
+        quotedCost = parameters.industry === 'all' ? 96 : 6;
       } else if (pricing?.type === 'post_stats_batch') {
         if (endpoint.path !== '/v1/prism/post-stats' || pricing.maxItems !== 100 || pricing.defaultCredits !== 1 || JSON.stringify(pricing.platformCredits) !== JSON.stringify({instagram:2,linkedin:5})) throw new SocialQueryError('Invalid post-statistics pricing metadata.');
         let urls=parameters.urls;
