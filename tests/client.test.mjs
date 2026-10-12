@@ -122,3 +122,12 @@ test('resolved prices preserve caller caps for exact enforcement before server r
  for(const maxCredits of [undefined,-1,1.5])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{url:'https://github.com/octocat/Hello-World'},maxCredits}));
  const bad=fixture({...item,path:'/v1/test/search'});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{url:'https://example.com'},maxCredits:5}),/Invalid resolved pricing/);assert.equal(bad.calls.length,1);
 });
+
+test('batch transcript budgets count IDs before a mutation request',async()=>{
+ const item={...endpoint,id:'post_youtube_transcripts',method:'POST',path:'/v1/youtube/transcripts',creditCost:3,params:[{name:'ids',required:true}],creditPricing:{type:'per_successful_input',arrayParameter:'ids',creditsPerItem:3,maxItems:100}};
+ const {client,calls}=fixture(item),params={ids:['bjVIDXPP7Uk','00000000000']};
+ await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:5,allowMutation:true,idempotencyKey:'batch-underfunded'}),/maximum request charge/);
+ assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters:params,maxCredits:6,allowMutation:true,idempotencyKey:'batch-ok'});
+ assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'6');assert.deepEqual(JSON.parse(calls.at(-1).options.body),params);
+});

@@ -112,6 +112,12 @@ export class SocialQueryClient {
         if (endpoint.path !== '/v1/prism/lookup' || !Number.isSafeInteger(pricing.maxCredits) || pricing.maxCredits < 1) throw new SocialQueryError('Invalid resolved pricing metadata.');
         resolvedPricing = true;
         quotedCost = pricing.maxCredits;
+      } else if (pricing?.type === 'per_successful_input') {
+        if (endpoint.path !== '/v1/youtube/transcripts' || pricing.arrayParameter !== 'ids' || pricing.creditsPerItem !== 3 || pricing.maxItems !== 100) throw new SocialQueryError('Invalid batch pricing metadata.');
+        let ids = parameters.ids;
+        if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch { throw new SocialQueryError('Invalid transcript IDs.'); } }
+        if (!Array.isArray(ids) || ids.length < 1 || ids.length > pricing.maxItems || !ids.every(id => typeof id === 'string' && /^[\w-]{11}$/.test(id))) throw new SocialQueryError('Invalid transcript IDs.');
+        quotedCost = ids.length * pricing.creditsPerItem;
       } else {
       if (pricing?.type !== 'per_item' || !Number.isSafeInteger(pricing.creditsPerItem) || pricing.creditsPerItem < 1 || !Number.isSafeInteger(pricing.maxLimit) || pricing.maxLimit < 1 || !Number.isSafeInteger(pricing.defaultLimit) || pricing.defaultLimit < 1 || pricing.defaultLimit > pricing.maxLimit || typeof pricing.limitParameter !== 'string') throw new SocialQueryError('Invalid metered pricing metadata.');
       const raw = Object.hasOwn(parameters, pricing.limitParameter) ? parameters[pricing.limitParameter] : pricing.defaultLimit;
