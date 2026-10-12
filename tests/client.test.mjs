@@ -162,3 +162,12 @@ test('video boards include fixed overhead in the maximum quote and refuse invali
  await client.callEndpoint({endpointId:item.id,parameters:{limit:4},maxCredits:29});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'29');
  for(const limit of [0,21,1.5,'2e1',true])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{limit},maxCredits:45}),/limit/);
 });
+
+ test('comment lookup quotes the explicit deep-scan price and fails closed on malformed metadata',async()=>{
+ const item={id:'get_tiktok_comment',method:'GET',path:'/v1/tiktok/comment',creditCost:2,params:[{name:'deep_scan'}],creditPricing:{type:'boolean_option',parameter:'deep_scan',defaultCredits:2,enabledCredits:6}};
+ const{client,calls}=fixture(item);await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{deep_scan:true},maxCredits:5}),/maximum/);assert.equal(calls.length,1);
+ for(const value of [true,'true']){await client.callEndpoint({endpointId:item.id,parameters:{deep_scan:value},maxCredits:6});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'6');}
+ for(const value of [false,'false',undefined])await client.callEndpoint({endpointId:item.id,parameters:value===undefined?{}:{deep_scan:value},maxCredits:2});
+ for(const value of [0,1,null,'yes'])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{deep_scan:value},maxCredits:6}),/deep_scan/);
+ const bad=fixture({...item,creditPricing:{...item.creditPricing,enabledCredits:2}});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{deep_scan:true},maxCredits:6}),/pricing metadata/);assert.equal(bad.calls.length,1);
+ });

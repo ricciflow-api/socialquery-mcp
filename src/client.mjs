@@ -112,6 +112,11 @@ export class SocialQueryClient {
         if (endpoint.path !== '/v1/prism/lookup' || !Number.isSafeInteger(pricing.maxCredits) || pricing.maxCredits < 1) throw new SocialQueryError('Invalid resolved pricing metadata.');
         resolvedPricing = true;
         quotedCost = pricing.maxCredits;
+      } else if (pricing?.type === 'boolean_option') {
+        if (endpoint.path !== '/v1/tiktok/comment' || pricing.parameter !== 'deep_scan' || pricing.defaultCredits !== 2 || pricing.enabledCredits !== 6) throw new SocialQueryError('Invalid comment-lookup pricing metadata.');
+        const raw = parameters.deep_scan;
+        if (raw !== undefined && ![true,false,'true','false'].includes(raw)) throw new SocialQueryError('deep_scan must be true or false.');
+        quotedCost = raw === true || raw === 'true' ? 6 : 2;
       } else if (pricing?.type === 'board_plus_item') {
         if (endpoint.path !== '/v1/tiktok/videos/popular' || pricing.baseCredits !== 25 || pricing.creditsPerItem !== 1 || pricing.defaultLimit !== 20 || pricing.maxLimit !== 20) throw new SocialQueryError('Invalid video-board pricing metadata.');
         const raw = parameters.limit ?? 20, limit = Number(raw);
