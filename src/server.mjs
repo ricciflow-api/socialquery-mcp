@@ -65,5 +65,9 @@ export function createServer(client = new SocialQueryClient()) {
     inputSchema: { limit: z.number().int().min(1).max(100).default(50), cursor: z.string().max(1024).optional(), requestId: z.string().min(1).max(200).optional() },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   }, handle(({limit,cursor,requestId}) => client.get('/v1/credits/transactions', {limit,...(cursor === undefined ? {} : {cursor}),...(requestId === undefined ? {} : {request_id:requestId})}, {maxCredits:0})));
+  server.registerTool('get_service_status', {
+    description: 'Read public passive service availability. Free; no key or provider calls. Distinguishes unavailable routes, recent failures and insufficient evidence. This is not an uptime guarantee.',
+    inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  }, handle(() => client.get('/v1/meta/status', {}, {authenticated:false,maxCredits:0})));
   return server;
 }

@@ -6,7 +6,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer } from '../src/server.mjs';
 import { SocialQueryClient } from '../src/client.mjs';
 
-const expected=['list_platforms','list_endpoints','get_endpoint','call_endpoint','execute_endpoint','get_credit_balance','get_credit_transactions'];
+const expected=['list_platforms','list_endpoints','get_endpoint','call_endpoint','execute_endpoint','get_credit_balance','get_credit_transactions','get_service_status'];
 test('real stdio process initializes and lists all tools without a credential',async()=>{
   const client=new Client({name:'protocol-test',version:'1.0.0'});
   const transport=new StdioClientTransport({command:process.execPath,args:['bin/socialquery-mcp.mjs'],env:{PATH:process.env.PATH??'',SOCIALQUERY_API_KEY:''},stderr:'pipe'});
@@ -89,4 +89,14 @@ test('Credit receipt tool omits absent optional filters before encoding',async()
  const server=createServer(api),client=new Client({name:'default-receipts',version:'1'});
  const[left,right]=InMemoryTransport.createLinkedPair();await server.connect(left);await client.connect(right);
  try{const r=await client.callTool({name:'get_credit_transactions',arguments:{}});assert.notEqual(r.isError,true,r.content[0].text);}finally{await client.close();await server.close();}
+});
+
+
+test('Service status is an explicit public zero-credit read without forwarding a key',async()=>{
+ const api=new SocialQueryClient({apiKey:'must-not-send',fetchImpl:async(url,init)=>{
+  assert.equal(url.pathname,'/v1/meta/status');assert.equal(init.headers['x-api-key'],undefined);assert.equal(init.headers['X-Max-Credits'],'0');
+  return Response.json({success:true,data:{status:'degraded'},credits_used:0});
+ }});
+ const server=createServer(api),client=new Client({name:'public-status-test',version:'1'}),[left,right]=InMemoryTransport.createLinkedPair();await server.connect(left);await client.connect(right);
+ try{const r=await client.callTool({name:'get_service_status',arguments:{}});assert.notEqual(r.isError,true);assert.equal(r.structuredContent.result.data.status,'degraded');}finally{await client.close();await server.close();}
 });
