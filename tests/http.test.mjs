@@ -24,7 +24,7 @@ test('HTTP SDK handshake and tools work without sessions; concurrent callers kee
   } });
   const clients = await Promise.all([connect(handler), connect(handler, { Authorization: 'Bearer alice' }), connect(handler, { 'X-API-Key': 'bob' }), connect(handler, { Authorization: 'Bearer invalid' })]);
   try {
-    assert.equal((await clients[0].listTools()).tools.length, 6);
+    assert.equal((await clients[0].listTools()).tools.length, 7);
     const result = await clients[0].callTool({ name: 'list_platforms', arguments: {} });
     assert.equal(result.structuredContent.result[0].slug, 'test');
     assert.equal(calls[0].key, undefined);

@@ -60,5 +60,10 @@ export function createServer(client = new SocialQueryClient()) {
     description: 'Read the authenticated SocialQuery credit balance. Requires a SocialQuery API key; no data credits spent.',
     inputSchema: {}, annotations: readOnly,
   }, handle(() => client.balance()));
+  server.registerTool('get_credit_transactions', {
+    description: 'Read one page of your credit receipts, newest first, optionally filtered by exact request ID. Free, private account data; no automatic pagination or provider requests.',
+    inputSchema: { limit: z.number().int().min(1).max(100).default(50), cursor: z.string().max(1024).optional(), requestId: z.string().min(1).max(200).optional() },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  }, handle(({limit,cursor,requestId}) => client.get('/v1/credits/transactions', {limit,...(cursor === undefined ? {} : {cursor}),...(requestId === undefined ? {} : {request_id:requestId})}, {maxCredits:0})));
   return server;
 }

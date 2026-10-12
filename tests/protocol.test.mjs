@@ -6,7 +6,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer } from '../src/server.mjs';
 import { SocialQueryClient } from '../src/client.mjs';
 
-const expected=['list_platforms','list_endpoints','get_endpoint','call_endpoint','execute_endpoint','get_credit_balance'];
+const expected=['list_platforms','list_endpoints','get_endpoint','call_endpoint','execute_endpoint','get_credit_balance','get_credit_transactions'];
 test('real stdio process initializes and lists all tools without a credential',async()=>{
   const client=new Client({name:'protocol-test',version:'1.0.0'});
   const transport=new StdioClientTransport({command:process.execPath,args:['bin/socialquery-mcp.mjs'],env:{PATH:process.env.PATH??'',SOCIALQUERY_API_KEY:''},stderr:'pipe'});
@@ -66,4 +66,27 @@ test('MCP mutations are explicitly annotated and preserve typed body through the
     const r=await client.callTool({name:'execute_endpoint',arguments:{...args,idempotencyKey:'batch-action-123'}});
     assert.equal(r.structuredContent.result.data.id,'job_test');assert.equal(mutations,1);
   } finally {await client.close();await server.close();}
+});
+
+
+test('Credit receipt tool makes one private free read with exact cursor and filter',async()=>{
+ let calls=0;
+ const api=new SocialQueryClient({apiKey:'test',fetchImpl:async(url,options)=>{
+  calls++;assert.equal(url.pathname,'/v1/credits/transactions');assert.equal(url.searchParams.get('limit'),'2');assert.equal(url.searchParams.get('request_id'),'req_test');assert.equal(url.searchParams.get('cursor'),'opaque_cursor');assert.equal(options.headers['X-Max-Credits'],'0');
+  return Response.json({success:true,data:{items:[],next_cursor:null},credits_used:0,request_id:'req_receipt'});
+ }});
+ const server=createServer(api),client=new Client({name:'receipt-test',version:'1'});
+ const[left,right]=InMemoryTransport.createLinkedPair();await server.connect(left);await client.connect(right);
+ try{const r=await client.callTool({name:'get_credit_transactions',arguments:{limit:2,cursor:'opaque_cursor',requestId:'req_test'}});assert.notEqual(r.isError,true);assert.equal(r.structuredContent.result.request_id,'req_receipt');assert.equal(calls,1);}finally{await client.close();await server.close();}
+});
+
+
+test('Credit receipt tool omits absent optional filters before encoding',async()=>{
+ const api=new SocialQueryClient({apiKey:'test',fetchImpl:async(url)=>{
+  assert.deepEqual([...url.searchParams.entries()],[['limit','50']]);
+  return Response.json({success:true,data:{items:[],next_cursor:null},credits_used:0});
+ }});
+ const server=createServer(api),client=new Client({name:'default-receipts',version:'1'});
+ const[left,right]=InMemoryTransport.createLinkedPair();await server.connect(left);await client.connect(right);
+ try{const r=await client.callTool({name:'get_credit_transactions',arguments:{}});assert.notEqual(r.isError,true,r.content[0].text);}finally{await client.close();await server.close();}
 });
