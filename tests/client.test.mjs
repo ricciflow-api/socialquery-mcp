@@ -180,3 +180,12 @@ test('shop market budgets deduplicate markets and reject insufficient caps or ma
  for(const regions of [0,'','US,','ZZ',Array(9).fill('US').join(',')])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{regions},maxCredits:8}),/markets/);
  const bad=fixture({...item,creditPricing:{...item.creditPricing,creditsPerRegion:0}});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:8}),/pricing metadata/);assert.equal(bad.calls.length,1);
 });
+
+test('news quote accounts for engines, depth, country deduplication and leg caps',async()=>{
+ const item={id:'get_search_news',method:'GET',path:'/v1/search/news',creditCost:2,params:['query','engines','countries','depth','max_legs'].map(name=>({name})),creditPricing:{type:'news_legs',baseCredits:2,googleCreditsPerLeg:1,bingArticlesPerCredit:5,maxLegs:12}};
+ const{client,calls}=fixture(item),parameters={query:'AI',engines:'google,bing',countries:'US,GB,us',depth:100,max_legs:1};
+ await assert.rejects(client.callEndpoint({endpointId:item.id,parameters,maxCredits:6}),/maximum/);assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters,maxCredits:7});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'7');
+ for(const patch of [{depth:11},{depth:true},{engines:'web'},{max_legs:0},{countries:''}])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{...parameters,...patch},maxCredits:62}),/news/);
+ const bad=fixture({...item,creditPricing:{...item.creditPricing,baseCredits:0}});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters,maxCredits:7}),/pricing metadata/);
+});

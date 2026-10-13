@@ -117,6 +117,15 @@ export class SocialQueryClient {
         const raw = parameters.deep_scan;
         if (raw !== undefined && ![true,false,'true','false'].includes(raw)) throw new SocialQueryError('deep_scan must be true or false.');
         quotedCost = raw === true || raw === 'true' ? 6 : 2;
+      } else if (pricing?.type === 'news_legs') {
+        if(endpoint.path!=='/v1/search/news'||pricing.baseCredits!==2||pricing.googleCreditsPerLeg!==1||pricing.bingArticlesPerCredit!==5||pricing.maxLegs!==12)throw new SocialQueryError('Invalid news pricing metadata.');
+        const rawCountries=parameters.countries??'US',rawEngines=parameters.engines??'google';
+        if(typeof rawCountries!=='string'||typeof rawEngines!=='string')throw new SocialQueryError('Invalid news countries or engines.');
+        const countries=[...new Set(rawCountries.split(',').map(x=>x.trim().toUpperCase()))],engines=[...new Set(rawEngines.split(',').map(x=>x.trim().toLowerCase()))];
+        if(countries.length<1||countries.length>12||countries.some(x=>!/^[A-Z]{2}$/.test(x))||!engines.length||engines.some(x=>!['google','bing'].includes(x)))throw new SocialQueryError('Invalid news countries or engines.');
+        const integer=(raw,min,max)=>{if(!['number','string'].includes(typeof raw)||typeof raw==='string'&&!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw))||Number(raw)<min||Number(raw)>max)throw new SocialQueryError('Invalid news depth or max_legs.');return Number(raw);};
+        const depth=integer(parameters.depth??10,10,100),legs=Math.min(countries.length,integer(parameters.max_legs??12,1,12));if(depth%10)throw new SocialQueryError('Invalid news depth.');
+        quotedCost=2+legs*((engines.includes('google')?1:0)+(engines.includes('bing')?Math.ceil(Math.min(depth,20)/5):0));
       } else if (pricing?.type === 'shop_regions') {
         if (endpoint.path !== '/v1/tiktokshop/sales' || pricing.creditsPerRegion !== 1 || pricing.maxRegions !== 8 || pricing.defaultRegion !== 'US') throw new SocialQueryError('Invalid shop market pricing metadata.');
         const raw = parameters.regions ?? 'US';
