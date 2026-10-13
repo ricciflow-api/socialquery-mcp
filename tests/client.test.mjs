@@ -171,3 +171,12 @@ test('video boards include fixed overhead in the maximum quote and refuse invali
  for(const value of [0,1,null,'yes'])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{deep_scan:value},maxCredits:6}),/deep_scan/);
  const bad=fixture({...item,creditPricing:{...item.creditPricing,enabledCredits:2}});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{deep_scan:true},maxCredits:6}),/pricing metadata/);assert.equal(bad.calls.length,1);
  });
+
+test('shop market budgets deduplicate markets and reject insufficient caps or malformed catalog data before access',async()=>{
+ const item={id:'get_tiktokshop_sales',method:'GET',path:'/v1/tiktokshop/sales',creditCost:0,params:[{name:'regions'}],creditPricing:{type:'shop_regions',creditsPerRegion:1,maxRegions:8,defaultRegion:'US'}};
+ const{client,calls}=fixture(item);await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{regions:'US,GB'},maxCredits:1}),/maximum/);assert.equal(calls.length,1);
+ await client.callEndpoint({endpointId:item.id,parameters:{regions:'US,gb,US'},maxCredits:2});assert.equal(calls.at(-1).options.headers['X-Max-Credits'],'2');
+ await client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:1});
+ for(const regions of [0,'','US,','ZZ',Array(9).fill('US').join(',')])await assert.rejects(client.callEndpoint({endpointId:item.id,parameters:{regions},maxCredits:8}),/markets/);
+ const bad=fixture({...item,creditPricing:{...item.creditPricing,creditsPerRegion:0}});await assert.rejects(bad.client.callEndpoint({endpointId:item.id,parameters:{},maxCredits:8}),/pricing metadata/);assert.equal(bad.calls.length,1);
+});

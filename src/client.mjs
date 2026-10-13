@@ -117,6 +117,13 @@ export class SocialQueryClient {
         const raw = parameters.deep_scan;
         if (raw !== undefined && ![true,false,'true','false'].includes(raw)) throw new SocialQueryError('deep_scan must be true or false.');
         quotedCost = raw === true || raw === 'true' ? 6 : 2;
+      } else if (pricing?.type === 'shop_regions') {
+        if (endpoint.path !== '/v1/tiktokshop/sales' || pricing.creditsPerRegion !== 1 || pricing.maxRegions !== 8 || pricing.defaultRegion !== 'US') throw new SocialQueryError('Invalid shop market pricing metadata.');
+        const raw = parameters.regions ?? 'US';
+        if (typeof raw !== 'string') throw new SocialQueryError('Invalid shop markets.');
+        const regions = raw.split(',').map(r => r.trim().toUpperCase());
+        if (regions.length < 1 || regions.length > 8 || regions.some(r => !['US','GB','DE','FR','IT','ES','IE','ID','MY','MX','PH','SG','TH','VN','BR','JP'].includes(r))) throw new SocialQueryError('Invalid shop markets.');
+        quotedCost = new Set(regions).size;
       } else if (pricing?.type === 'board_plus_item') {
         if (endpoint.path !== '/v1/tiktok/videos/popular' || pricing.baseCredits !== 25 || pricing.creditsPerItem !== 1 || pricing.defaultLimit !== 20 || pricing.maxLimit !== 20) throw new SocialQueryError('Invalid video-board pricing metadata.');
         const raw = parameters.limit ?? 20, limit = Number(raw);
